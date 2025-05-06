@@ -1,54 +1,54 @@
-import os
+# Szükséges könyvtárak importálása
 import pandas as pd
-from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
-import matplotlib.pyplot as plt
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 import seaborn as sns
+import matplotlib.pyplot as plt
 
-# Ellenőrizzük a train.csv fájlt
-data_file = 'train.csv'
-if not os.path.exists(data_file):
-    print(f"Hiba: A '{data_file}' fájl nem található!")
-    print("Töltsd le a Titanic adathalmazt: https://www.kaggle.com/competitions/titanic/data")
-    print("Helyezd a 'train.csv' fájlt ebbe a mappába.")
-    exit(1)
+# 1. Adathalmaz betöltése
+train_data = pd.read_csv('train.csv')
 
-try:
-    # Adatok betöltése
-    data = pd.read_csv(data_file)
-    print("Adathalmaz sikeresen betöltve!")
-    print("\nElső 5 sor:")
-    print(data.head())
+# 2. Adat-előkészítés
+# Hiányzó 'Age' értékek kitöltése az átlagos életkorral
+train_data['Age'] = train_data['Age'].fillna(train_data['Age'].mean())
 
-    # Egyszerű előfeldolgozás
-    data['Age'].fillna(data['Age'].median(), inplace=True)
-    data['Sex'] = data['Sex'].map({'male': 0, 'female': 1})
-    features = ['Pclass', 'Sex', 'Age']
-    X = data[features]
-    y = data['Survived']
+# Hiányzó 'Embarked' értékek kitöltése a leggyakoribb értékkel
+train_data['Embarked'] = train_data['Embarked'].fillna(train_data['Embarked'].mode()[0])
 
-    # Adatok felosztása
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# 'Cabin' oszlop elhagyása, mert túl sok a hiányzó érték
+train_data = train_data.drop('Cabin', axis=1)
 
-    # Modell tanítása
-    model = DecisionTreeClassifier(random_state=42)
-    model.fit(X_train, y_train)
+# Kategorikus változók számmá alakítása (pl. 'Sex' és 'Embarked')
+train_data['Sex'] = train_data['Sex'].map({'male': 0, 'female': 1})
+train_data = pd.get_dummies(train_data, columns=['Embarked'], drop_first=True)
 
-    # Előrejelzés és pontosság
-    y_pred = model.predict(X_test)
-    print("\nModell pontossága:", accuracy_score(y_test, y_pred))
+# 3. Adathalmaz felosztása 
+# Célváltozó (Survived) és jellemzők kiválasztása
+X = train_data[['Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked_Q', 'Embarked_S']]
+y = train_data['Survived']
 
-    # Vizualizáció
-    plt.figure(figsize=(6, 4))
-    sns.barplot(x='Sex', y='Survived', data=data)
-    plt.title('Túlélési arány nemek szerint')
-    plt.xlabel('Nem (0 = férfi, 1 = nő)')
-    plt.ylabel('Túlélési arány')
-    plt.savefig('survival_by_sex.png')
-    print("Grafikon mentve: survival_by_sex.png")
-    plt.show()
+# Tanító és tesztelő adatokra bontás
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-except Exception as e:
-    print(f"Hiba történt: {str(e)}")
-    print("Ellenőrizd, hogy a könyvtárak (pandas, scikit-learn, matplotlib, seaborn) telepítve vannak.")
+# Ellenőrzés: Nézzük meg az adatok méretét
+print("Tanító adatok mérete:", X_train.shape)
+print("Tesztelő adatok mérete:", X_test.shape)
+
+# 4. Modell betanítása 
+model = DecisionTreeClassifier(random_state=42)
+model.fit(X_train, y_train)
+
+# 5. Predikció és kiértékelés 
+y_pred = model.predict(X_test)
+print("Pontosság:", accuracy_score(y_test, y_pred))
+print(classification_report(y_test, y_pred))
+
+# 6. Konfúziós mátrix vizualizáció
+cm = confusion_matrix(y_test, y_pred)
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+plt.title('Konfúziós mátrix')
+plt.xlabel('Predikált')
+plt.ylabel('Tényleges')
+plt.savefig('confusion_matrix.png')
+plt.show()
